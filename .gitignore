@@ -1,0 +1,25 @@
+# Dependências
+node_modules/
+npm-debug.log
+yarn-error.log
+pnpm-debug.log
+
+# Arquivos de construção
+dist/
+.vitepress/cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Sistema
+.DS_Store
+Thumbs.db
