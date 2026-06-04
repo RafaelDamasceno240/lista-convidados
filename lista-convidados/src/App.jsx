@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 
+// Aplicação para gerenciar lista de convidados com status e contagem
 const STORAGE_KEY = "lista_convidados_v1";
 
 const INITIAL_GUESTS = [
