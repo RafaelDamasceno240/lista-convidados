@@ -10,7 +10,6 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 const STATUS_CONFIG = {
   confirmed: { label: "Confirmado", color: "#2DD4A0", bg: "rgba(45,212,160,0.15)", dot: "#2DD4A0" },
   pending:   { label: "Pendente",   color: "#F59E0B", bg: "rgba(245,158,11,0.15)", dot: "#F59E0B" },
-  absent:    { label: "Ausente",    color: "#F87171", bg: "rgba(248,113,113,0.15)", dot: "#F87171" },
 };
 
 function getInitials(name) {
@@ -47,8 +46,9 @@ function Modal({ open, onClose, children }) {
 
 function GuestCard({ guest, onStatusChange, onDelete, onEdit }) {
   const { bg, text } = avatarColor(guest.name);
-  const statusCfg = STATUS_CONFIG[guest.status];
-  const nextStatus = guest.status === "confirmed" ? "pending" : guest.status === "pending" ? "absent" : "confirmed";
+  const statusCfg = STATUS_CONFIG[guest.status] || STATUS_CONFIG.pending;
+  // Alterna diretamente entre confirmado e pendente
+  const nextStatus = guest.status === "confirmed" ? "pending" : "confirmed";
 
   return (
     <div style={{ display:"flex",alignItems:"center",gap:14,background:"#131B1E",borderRadius:16,padding:"14px 16px",marginBottom:10,border:"1px solid rgba(255,255,255,0.05)",transition:"all 0.18s ease" }}>
@@ -147,13 +147,11 @@ export default function App() {
     loadGuests();
   }, []);
 
-  // --- TRAVA DE SEGURANÇA SEGURO CONTRA ARRAY VAZIO OU UNDEFINED ---
   const safeGuests = Array.isArray(guests) ? guests : [];
 
   const totalPeople     = safeGuests.reduce((s, g) => s + (g.count || 0), 0);
   const confirmedPeople = safeGuests.filter(g => g.status === "confirmed").reduce((s, g) => s + (g.count || 0), 0);
   const pendingPeople   = safeGuests.filter(g => g.status === "pending").reduce((s, g) => s + (g.count || 0), 0);
-  const absentPeople    = safeGuests.filter(g => g.status === "absent").reduce((s, g) => s + (g.count || 0), 0);
   const pendingGuests   = safeGuests.filter(g => g.status === "pending");
 
   const filtered = safeGuests.filter(g => {
@@ -164,7 +162,6 @@ export default function App() {
   const sections = [
     { key:"pending", label:"Pendentes", data: filtered.filter(g => g.status === "pending") },
     { key:"confirmed", label:"Confirmados", data: filtered.filter(g => g.status === "confirmed") },
-    { key:"absent", label:"Ausentes", data: filtered.filter(g => g.status === "absent") },
   ].filter(s => s.data.length > 0);
 
   // 2. ADICIONAR CONVIDADO NO SUPABASE
@@ -239,7 +236,6 @@ export default function App() {
             <div style={{ height:"100%",display:"flex" }}>
               <div style={{ width:`${(confirmedPeople/totalPeople)*100}%`,background:"#2DD4A0",transition:"width 0.4s ease" }} />
               <div style={{ width:`${(pendingPeople/totalPeople)*100}%`,background:"#F59E0B",transition:"width 0.4s ease" }} />
-              <div style={{ width:`${(absentPeople/totalPeople)*100}%`,background:"#F87171",transition:"width 0.4s ease" }} />
             </div>
           )}
         </div>
@@ -251,7 +247,7 @@ export default function App() {
         </div>
 
         <div style={{ display:"flex",gap:6,overflowX:"auto",paddingBottom:4 }}>
-          {[{ key:"all",label:"Todos" },{ key:"confirmed",label:"✓ Confirmados" },{ key:"pending",label:"⏳ Pendentes" },{ key:"absent",label:"✕ Ausentes" }].map(({ key, label }) => (
+          {[{ key:"all",label:"Todos" },{ key:"confirmed",label:"✓ Confirmados" },{ key:"pending",label:"⏳ Pendentes" }].map(({ key, label }) => (
             <button key={key} onClick={() => setFilter(key)} style={{ flexShrink:0,padding:"8px 14px",borderRadius:20,fontFamily:"'DM Sans',sans-serif",fontWeight:600,fontSize:13,cursor:"pointer",whiteSpace:"nowrap",background:filter===key?"#2DD4A0":"transparent",border:filter===key?"1px solid #2DD4A0":"1px solid rgba(255,255,255,0.1)",color:filter===key?"#042C1E":"#5E7A72" }}>{label}</button>
           ))}
         </div>
@@ -265,7 +261,7 @@ export default function App() {
           </div>
         ) : sections.map(({ key, label, data }) => (
           <div key={key} style={{ marginBottom:8 }}>
-            <div style={{ fontSize:11,fontWeight:700,color:STATUS_CONFIG[key].color,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:10,marginTop:4 }}>
+            <div style={{ fontSize:11,fontWeight:700,color:STATUS_CONFIG[key]?.color || "#FFF",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:10,marginTop:4 }}>
               {label} ({data.reduce((s, g) => s + (g.count || 0), 0)})
             </div>
             {data.map(g => <GuestCard key={g.id} guest={g} onStatusChange={handleStatusChange} onDelete={handleDelete} onEdit={setEditGuest} />)}
@@ -273,7 +269,7 @@ export default function App() {
         ))}
       </div>
 
-      {pendingGuests.length > 0 && filter !== "absent" && (
+      {pendingGuests.length > 0 && filter !== "confirmed" && (
         <div style={{ position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,padding:"16px 20px 28px",background:"linear-gradient(0deg,#0A1214 70%,transparent)",zIndex:20 }}>
           <button onClick={() => setConfirmBulk(true)} style={{ width:"100%",padding:"16px",borderRadius:16,border:"none",background:"linear-gradient(135deg,#2DD4A0,#1DAF82)",color:"#042C1E",fontWeight:700,fontSize:16,fontFamily:"'DM Sans',sans-serif",cursor:"pointer" }}>
             Confirmar {pendingGuests.length} em massa
