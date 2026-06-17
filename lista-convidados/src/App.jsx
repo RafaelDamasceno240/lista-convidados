@@ -52,7 +52,6 @@ function Modal({ open, onClose, children }) {
 function GuestCard({ guest, onStatusChange, onDelete, onEdit }) {
   const { bg, text } = avatarColor(guest.name);
   const statusCfg = STATUS_CONFIG[guest.status] || STATUS_CONFIG.pending;
-  const ageCfg = AGE_CONFIG[guest.age_group || "adult"];
   const nextStatus = guest.status === "confirmed" ? "pending" : "confirmed";
 
   return (
@@ -62,13 +61,20 @@ function GuestCard({ guest, onStatusChange, onDelete, onEdit }) {
       </div>
       <div style={{ flex:1,minWidth:0 }}>
         <div style={{ fontWeight:600,fontSize:15,color:"#E8F0EE",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{guest.name}</div>
-        <div style={{ display:"flex",alignItems:"center",gap:6,marginTop:2 }}>
+        <div style={{ display:"flex",flexDirection:"column",gap:2,marginTop:2 }}>
           <span style={{ fontSize:12,color:"#5E7A72" }}>
             {guest.type === "group" ? `${guest.count} pessoa(s)` : "Individual"}
           </span>
-          <span style={{ fontSize:10,fontWeight:700,color:ageCfg.color,background:ageCfg.bg,padding:"1px 6px",borderRadius:6,textTransform:"uppercase",letterSpacing:"0.02em" }}>
-            {ageCfg.label}
-          </span>
+          <div style={{ display:"flex",gap:4,flexWrap:"wrap" }}>
+            <span style={{ fontSize:10,fontWeight:700,color:AGE_CONFIG.adult.color,background:AGE_CONFIG.adult.bg,padding:"1px 6px",borderRadius:6,textTransform:"uppercase" }}>
+              {guest.adults_count || 1} {guest.adults_count === 1 ? "Adulto" : "Adultos"}
+            </span>
+            {(guest.children_count > 0 || guest.age_group === "child") && (
+              <span style={{ fontSize:10,fontWeight:700,color:AGE_CONFIG.child.color,background:AGE_CONFIG.child.bg,padding:"1px 6px",borderRadius:6,textTransform:"uppercase" }}>
+                {guest.type === "group" ? guest.children_count : 1} {guest.type === "individual" || guest.children_count === 1 ? "Criança" : "Crianças"}
+              </span>
+            )}
+          </div>
         </div>
         <span style={{ display:"inline-block",marginTop:6,fontSize:11,fontWeight:600,letterSpacing:"0.03em",color:statusCfg.color,background:statusCfg.bg,borderRadius:20,padding:"2px 10px" }}>{statusCfg.label}</span>
       </div>
@@ -84,16 +90,46 @@ function GuestCard({ guest, onStatusChange, onDelete, onEdit }) {
 function GuestForm({ initial, onSave, onClose }) {
   const [name, setName] = useState(initial?.name || "");
   const [type, setType] = useState(initial?.type || "individual");
-  const [count, setCount] = useState(initial?.count || 1);
   const [status, setStatus] = useState(initial?.status || "pending");
-  const [ageGroup, setAgeGroup] = useState(initial?.age_group || "adult");
+  
+  // Estados para gerenciar as quantidades específicas
+  const [adultsCount, setAdultsCount] = useState(initial?.adults_count ?? (initial?.age_group === "child" ? 0 : 1));
+  const [childrenCount, setChildrenCount] = useState(initial?.children_count ?? (initial?.age_group === "child" ? 1 : 0));
+  const [individualAge, setIndividualAge] = useState(initial?.age_group || "adult");
+
   const inputRef = useRef();
 
   useEffect(() => { setTimeout(() => inputRef.current?.focus(), 100); }, []);
 
   const handleSave = () => {
     if (!name.trim()) return;
-    onSave({ name: name.trim(), type, count: type === "group" ? Number(count) : 1, status, age_group: ageGroup });
+
+    let finalAdults = 1;
+    let finalChildren = 0;
+    let finalAgeGroup = "adult";
+
+    if (type === "individual") {
+      finalAdults = individualAge === "adult" ? 1 : 0;
+      finalChildren = individualAge === "child" ? 1 : 0;
+      finalAgeGroup = individualAge;
+    } else {
+      finalAdults = Number(adultsCount) || 0;
+      finalChildren = Number(childrenCount) || 0;
+      finalAgeGroup = finalAdults > 0 ? "adult" : "child";
+    }
+
+    const totalCount = finalAdults + finalChildren;
+    if (totalCount <= 0) return; // Impede salvar sem ninguém no grupo
+
+    onSave({ 
+      name: name.trim(), 
+      type, 
+      count: totalCount, 
+      status, 
+      adults_count: finalAdults, 
+      children_count: finalChildren,
+      age_group: finalAgeGroup
+    });
   };
 
   const inputStyle = { width:"100%",background:"#0E1618",border:"1px solid rgba(255,255,255,0.1)",borderRadius:12,padding:"13px 16px",color:"#E8F0EE",fontSize:15,fontFamily:"'DM Sans',sans-serif",outline:"none",boxSizing:"border-box" };
@@ -117,20 +153,29 @@ function GuestForm({ initial, onSave, onClose }) {
           ))}
         </div>
       </div>
-      {type === "group" && (
+
+      {type === "individual" ? (
         <div style={{ marginBottom:16 }}>
-          <label style={labelStyle}>Número de pessoas</label>
-          <input type="number" min={2} max={99} style={inputStyle} value={count} onChange={e => setCount(e.target.value)} />
+          <label style={labelStyle}>Faixa de Idade</label>
+          <div style={{ display:"flex",gap:10 }}>
+            {Object.entries(AGE_CONFIG).map(([key, cfg]) => (
+              <button key={key} onClick={() => setIndividualAge(key)} style={{ flex:1,padding:"11px",borderRadius:12,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontWeight:600,fontSize:14,background:individualAge===key?cfg.bg:"#0E1618",border:individualAge===key?`1px solid ${cfg.color}44`:"1px solid rgba(255,255,255,0.08)",color:individualAge===key?cfg.color:"#5E7A72" }}>{cfg.label}</button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div style={{ display:"flex",gap:12,marginBottom:16 }}>
+          <div style={{ flex:1 }}>
+            <label style={labelStyle}>Adultos</label>
+            <input type="number" min={0} max={99} style={inputStyle} value={adultsCount} onChange={e => setAdultsCount(e.target.value)} />
+          </div>
+          <div style={{ flex:1 }}>
+            <label style={labelStyle}>Crianças</label>
+            <input type="number" min={0} max={99} style={inputStyle} value={childrenCount} onChange={e => setChildrenCount(e.target.value)} />
+          </div>
         </div>
       )}
-      <div style={{ marginBottom:16 }}>
-        <label style={labelStyle}>Faixa de Idade</label>
-        <div style={{ display:"flex",gap:10 }}>
-          {Object.entries(AGE_CONFIG).map(([key, cfg]) => (
-            <button key={key} onClick={() => setAgeGroup(key)} style={{ flex:1,padding:"11px",borderRadius:12,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontWeight:600,fontSize:14,background:ageGroup===key?cfg.bg:"#0E1618",border:ageGroup===key?`1px solid ${cfg.color}44`:"1px solid rgba(255,255,255,0.08)",color:ageGroup===key?cfg.color:"#5E7A72" }}>{cfg.label}</button>
-          ))}
-        </div>
-      </div>
+
       <div style={{ marginBottom:24 }}>
         <label style={labelStyle}>Status</label>
         <div style={{ display:"flex",gap:8 }}>
