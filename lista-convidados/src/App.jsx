@@ -1,18 +1,10 @@
 import { useState, useEffect, useRef } from "react";
+import { createClient } from "@supabase/supabase-js";
 
-// Aplicação para gerenciar lista de convidados com status e contagem
-const STORAGE_KEY = "lista_convidados_v1";
-
-const INITIAL_GUESTS = [
-  { id: 1, name: "Douglas", type: "individual", count: 1, status: "confirmed" },
-  { id: 2, name: "Ana Costa", type: "individual", count: 1, status: "confirmed" },
-  { id: 3, name: "Família Oliveira", type: "group", count: 4, status: "confirmed" },
-  { id: 4, name: "Casal Pedro & Luana", type: "group", count: 2, status: "confirmed" },
-  { id: 5, name: "Beatriz Ramos", type: "individual", count: 1, status: "confirmed" },
-  { id: 6, name: "Dr. Roberto Nunes", type: "individual", count: 1, status: "confirmed" },
-  { id: 7, name: "Damasceno", type: "individual", count: 1, status: "pending" },
-  { id: 8, name: "Marcos Silva", type: "individual", count: 1, status: "absent" },
-];
+// Inicialização do cliente Supabase (Suporta local com VITE_ e produção na Vercel)
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const STATUS_CONFIG = {
   confirmed: { label: "Confirmado", color: "#2DD4A0", bg: "rgba(45,212,160,0.15)", dot: "#2DD4A0" },
@@ -133,17 +125,26 @@ function GuestForm({ initial, onSave, onClose }) {
 }
 
 export default function App() {
-  const [guests, setGuests] = useState(() => {
-    try { const s = localStorage.getItem(STORAGE_KEY); return s ? JSON.parse(s) : INITIAL_GUESTS; }
-    catch { return INITIAL_GUESTS; }
-  });
+  const [guests, setGuests] = useState([]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [showForm, setShowForm] = useState(false);
   const [editGuest, setEditGuest] = useState(null);
   const [confirmBulk, setConfirmBulk] = useState(false);
 
-  useEffect(() => { localStorage.setItem(STORAGE_KEY, JSON.stringify(guests)); }, [guests]);
+  // 1. CARREGAR CONVIDADOS DO SUPABASE
+  useEffect(() => {
+    async function loadGuests() {
+      const { data, error } = await supabase
+        .from("guests")
+        .select("*")
+        .order("id", { ascending: true });
+      
+      if (error) console.error("Erro ao carregar dados do Supabase:", error);
+      else setGuests(data || []);
+    }
+    loadGuests();
+  }, []);
 
   const totalPeople = guests.reduce((s, g) => s + g.count, 0);
   const confirmedPeople = guests.filter(g => g.status === "confirmed").reduce((s, g) => s + g.count, 0);
@@ -162,11 +163,40 @@ export default function App() {
     { key:"absent", label:"Ausentes", data: filtered.filter(g => g.status === "absent") },
   ].filter(s => s.data.length > 0);
 
-  const handleAdd = (data) => { setGuests(prev => [...prev, { id: Date.now(), ...data }]); setShowForm(false); };
-  const handleEdit = (data) => { setGuests(prev => prev.map(g => g.id === editGuest.id ? { ...g, ...data } : g)); setEditGuest(null); };
-  const handleStatusChange = (id, newStatus) => setGuests(prev => prev.map(g => g.id === id ? { ...g, status: newStatus } : g));
-  const handleDelete = (id) => setGuests(prev => prev.filter(g => g.id !== id));
-  const handleBulkConfirm = () => { setGuests(prev => prev.map(g => g.status === "pending" ? { ...g, status: "confirmed" } : g)); setConfirmBulk(false); };
+  // 2. ADICIONAR CONVIDADO NO SUPABASE
+  const handleAdd = async (data) => {
+    const { data: newGuest, error } = await supabase.from("guests").insert([data]).select();
+    if (error) console.error("Erro ao adicionar:", error);
+    else { setGuests(prev => [...prev, newGuest[0]]); setShowForm(false); }
+  };
+
+  // 3. EDITAR CONVIDADO NO SUPABASE
+  const handleEdit = async (data) => {
+    const { data: updatedGuest, error } = await supabase.from("guests").update(data).eq("id", editGuest.id).select();
+    if (error) console.error("Erro ao editar:", error);
+    else { setGuests(prev => prev.map(g => g.id === editGuest.id ? updatedGuest[0] : g)); setEditGuest(null); }
+  };
+
+  // 4. MUDAR STATUS RAPIDÃO (BOTOES DO CARD)
+  const handleStatusChange = async (id, newStatus) => {
+    const { error } = await supabase.from("guests").update({ status: newStatus }).eq("id", id);
+    if (error) console.error("Erro ao atualizar status:", error);
+    else setGuests(prev => prev.map(g => g.id === id ? { ...g, status: newStatus } : g));
+  };
+
+  // 5. DELETAR CONVIDADO NO SUPABASE
+  const handleDelete = async (id) => {
+    const { error } = await supabase.from("guests").delete().eq("id", id);
+    if (error) console.error("Erro ao deletar:", error);
+    else setGuests(prev => prev.filter(g => g.id !== id));
+  };
+
+  // 6. CONFIRMAÇÃO EM MASSA (BULK) NO SUPABASE
+  const handleBulkConfirm = async () => {
+    const { error } = await supabase.from("guests").update({ status: "confirmed" }).eq("status", "pending");
+    if (error) console.error("Erro na confirmação em massa:", error);
+    else { setGuests(prev => prev.map(g => g.status === "pending" ? { ...g, status: "confirmed" } : g)); setConfirmBulk(false); }
+  };
 
   return (
     <div style={{ minHeight:"100vh",background:"#0A1214",fontFamily:"'DM Sans',sans-serif",color:"#E8F0EE",maxWidth:480,margin:"0 auto",paddingBottom:pendingGuests.length>0?100:32 }}>
@@ -242,7 +272,7 @@ export default function App() {
       {pendingGuests.length > 0 && filter !== "absent" && (
         <div style={{ position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,padding:"16px 20px 28px",background:"linear-gradient(0deg,#0A1214 70%,transparent)",zIndex:20 }}>
           <button onClick={() => setConfirmBulk(true)} style={{ width:"100%",padding:"16px",borderRadius:16,border:"none",background:"linear-gradient(135deg,#2DD4A0,#1DAF82)",color:"#042C1E",fontWeight:700,fontSize:16,fontFamily:"'DM Sans',sans-serif",cursor:"pointer" }}>
-            Confirmar {pendingGuests.length} pendente{pendingGuests.length > 1 ? "s" : ""}
+            Confirmar {pendingGuests.length} em massa
           </button>
         </div>
       )}
@@ -257,7 +287,7 @@ export default function App() {
         <div style={{ textAlign:"center" }}>
           <div style={{ fontSize:48,marginBottom:12 }}>✅</div>
           <h2 style={{ fontSize:20,fontWeight:700,color:"#E8F0EE",marginBottom:8 }}>Confirmar todos?</h2>
-          <p style={{ color:"#5E7A72",fontSize:14,marginBottom:28 }}>{pendingGuests.length} convidado{pendingGuests.length>1?"s":""} pendente{pendingGuests.length>1?"s":""} serão marcados como confirmados.</p>
+          <p style={{ color:"#5E7A72",fontSize:14,marginBottom:28 }}>{pendingGuests.length} convidado(s) pendente(s) serão marcados como confirmados.</p>
           <div style={{ display:"flex",gap:10 }}>
             <button onClick={() => setConfirmBulk(false)} style={{ flex:1,padding:14,borderRadius:12,border:"1px solid rgba(255,255,255,0.1)",background:"#0E1618",color:"#5E7A72",fontWeight:600,fontSize:15,cursor:"pointer",fontFamily:"'DM Sans',sans-serif" }}>Cancelar</button>
             <button onClick={handleBulkConfirm} style={{ flex:1,padding:14,borderRadius:12,border:"none",background:"linear-gradient(135deg,#2DD4A0,#1DAF82)",color:"#042C1E",fontWeight:700,fontSize:15,cursor:"pointer",fontFamily:"'DM Sans',sans-serif" }}>Confirmar todos</button>
