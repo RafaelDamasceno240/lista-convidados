@@ -92,7 +92,6 @@ function GuestForm({ initial, onSave, onClose }) {
   const [type, setType] = useState(initial?.type || "individual");
   const [status, setStatus] = useState(initial?.status || "pending");
   
-  // Estados para gerenciar as quantidades específicas
   const [adultsCount, setAdultsCount] = useState(initial?.adults_count ?? (initial?.age_group === "child" ? 0 : 1));
   const [childrenCount, setChildrenCount] = useState(initial?.children_count ?? (initial?.age_group === "child" ? 1 : 0));
   const [individualAge, setIndividualAge] = useState(initial?.age_group || "adult");
@@ -119,7 +118,7 @@ function GuestForm({ initial, onSave, onClose }) {
     }
 
     const totalCount = finalAdults + finalChildren;
-    if (totalCount <= 0) return; // Impede salvar sem ninguém no grupo
+    if (totalCount <= 0) return;
 
     onSave({ 
       name: name.trim(), 
@@ -197,7 +196,6 @@ export default function App() {
   const [filter, setFilter] = useState("all");
   const [showForm, setShowForm] = useState(false);
   const [editGuest, setEditGuest] = useState(null);
-  const [confirmBulk, setConfirmBulk] = useState(false);
 
   // 1. CARREGAR CONVIDADOS DO SUPABASE
   useEffect(() => {
@@ -218,7 +216,6 @@ export default function App() {
   const totalPeople     = safeGuests.reduce((s, g) => s + (g.count || 0), 0);
   const confirmedPeople = safeGuests.filter(g => g.status === "confirmed").reduce((s, g) => s + (g.count || 0), 0);
   const pendingPeople   = safeGuests.filter(g => g.status === "pending").reduce((s, g) => s + (g.count || 0), 0);
-  const pendingGuests   = safeGuests.filter(g => g.status === "pending");
 
   const filtered = safeGuests.filter(g => {
     const matchSearch = g.name ? g.name.toLowerCase().includes(search.toLowerCase()) : false;
@@ -258,15 +255,8 @@ export default function App() {
     else setGuests(prev => prev.filter(g => g.id !== id));
   };
 
-  // 6. CONFIRMAÇÃO EM MASSA (BULK) NO SUPABASE
-  const handleBulkConfirm = async () => {
-    const { error } = await supabase.from("guests").update({ status: "confirmed" }).eq("status", "pending");
-    if (error) console.error("Erro na confirmação em massa:", error);
-    else { setGuests(prev => prev.map(g => g.status === "pending" ? { ...g, status: "confirmed" } : g)); setConfirmBulk(false); }
-  };
-
   return (
-    <div style={{ minHeight:"100vh",background:"#0A1214",fontFamily:"'DM Sans',sans-serif",color:"#E8F0EE",maxWidth:480,margin:"0 auto",paddingBottom:pendingGuests.length>0?100:32 }}>
+    <div style={{ minHeight:"100vh",background:"#0A1214",fontFamily:"'DM Sans',sans-serif",color:"#E8F0EE",maxWidth:480,margin:"0 auto",paddingBottom:32 }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap');
         @keyframes fadeIn{from{opacity:0}to{opacity:1}}
@@ -335,30 +325,11 @@ export default function App() {
         ))}
       </div>
 
-      {pendingGuests.length > 0 && filter !== "confirmed" && (
-        <div style={{ position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,padding:"16px 20px 28px",background:"linear-gradient(0deg,#0A1214 70%,transparent)",zIndex:20 }}>
-          <button onClick={() => setConfirmBulk(true)} style={{ width:"100%",padding:"16px",borderRadius:16,border:"none",background:"linear-gradient(135deg,#2DD4A0,#1DAF82)",color:"#042C1E",fontWeight:700,fontSize:16,fontFamily:"'DM Sans',sans-serif",cursor:"pointer" }}>
-            Confirmar {pendingGuests.length} em massa
-          </button>
-        </div>
-      )}
-
       <Modal open={showForm} onClose={() => setShowForm(false)}>
         <GuestForm onSave={handleAdd} onClose={() => setShowForm(false)} />
       </Modal>
       <Modal open={!!editGuest} onClose={() => setEditGuest(null)}>
         {editGuest && <GuestForm initial={editGuest} onSave={handleEdit} onClose={() => setEditGuest(null)} />}
-      </Modal>
-      <Modal open={confirmBulk} onClose={() => setConfirmBulk(false)}>
-        <div style={{ textAlign:"center" }}>
-          <div style={{ fontSize:48,marginBottom:12 }}>✅</div>
-          <h2 style={{ fontSize:20,fontWeight:700,color:"#E8F0EE",marginBottom:8 }}>Confirmar todos?</h2>
-          <p style={{ color:"#5E7A72",fontSize:14,marginBottom:28 }}>{pendingGuests.length} convidado(s) pendente(s) serão marcados como confirmados.</p>
-          <div style={{ display:"flex",gap:10 }}>
-            <button onClick={() => setConfirmBulk(false)} style={{ flex:1,padding:14,borderRadius:12,border:"1px solid rgba(255,255,255,0.1)",background:"#0E1618",color:"#5E7A72",fontWeight:600,fontSize:15,cursor:"pointer",fontFamily:"'DM Sans',sans-serif" }}>Cancelar</button>
-            <button onClick={handleBulkConfirm} style={{ flex:1,padding:14,borderRadius:12,border:"none",background:"linear-gradient(135deg,#2DD4A0,#1DAF82)",color:"#042C1E",fontWeight:700,fontSize:15,cursor:"pointer",fontFamily:"'DM Sans',sans-serif" }}>Confirmar todos</button>
-          </div>
-        </div>
       </Modal>
     </div>
   );
