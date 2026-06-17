@@ -12,9 +12,11 @@ const STATUS_CONFIG = {
   pending:   { label: "Pendente",   color: "#F59E0B", bg: "rgba(245,158,11,0.15)", dot: "#F59E0B" },
 };
 
+// Nova configuração de faixas de idade requisitada
 const AGE_CONFIG = {
-  adult: { label: "Adulto", color: "#60A5FA", bg: "rgba(96,165,251,0.12)" },
-  child: { label: "Criança", color: "#F472B6", bg: "rgba(244,114,182,0.12)" },
+  plus18: { label: "+18", color: "#60A5FA", bg: "rgba(96,165,251,0.12)" },
+  plus6:  { label: "+6",  color: "#F472B6", bg: "rgba(244,114,182,0.12)" },
+  minus6: { label: "-6",  color: "#A78BFA", bg: "rgba(167,139,250,0.12)" },
 };
 
 function getInitials(name) {
@@ -54,6 +56,11 @@ function GuestCard({ guest, onStatusChange, onDelete, onEdit }) {
   const statusCfg = STATUS_CONFIG[guest.status] || STATUS_CONFIG.pending;
   const nextStatus = guest.status === "confirmed" ? "pending" : "confirmed";
 
+  // Mapeamento retrocompatível ou baseado nos novos campos adicionais do Supabase
+  const p18Count = guest.type === "group" ? (guest.adults_count ?? 0) : (guest.age_group === "plus18" || !guest.age_group || guest.age_group === "adult" ? 1 : 0);
+  const p6Count  = guest.type === "group" ? (guest.children_count ?? 0) : (guest.age_group === "plus6" || guest.age_group === "child" ? 1 : 0);
+  const m6Count  = guest.type === "group" ? (guest.minus6_count ?? 0) : (guest.age_group === "minus6" ? 1 : 0);
+
   return (
     <div style={{ display:"flex",alignItems:"center",gap:14,background:"#131B1E",borderRadius:16,padding:"14px 16px",marginBottom:10,border:"1px solid rgba(255,255,255,0.05)",transition:"all 0.18s ease" }}>
       <div style={{ width:44,height:44,borderRadius:"50%",background:bg,color:text,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'DM Sans',sans-serif",fontWeight:600,fontSize:14,flexShrink:0,border:`2px solid ${statusCfg.dot}22` }}>
@@ -66,12 +73,19 @@ function GuestCard({ guest, onStatusChange, onDelete, onEdit }) {
             {guest.type === "group" ? `${guest.count} pessoa(s)` : "Individual"}
           </span>
           <div style={{ display:"flex",gap:4,flexWrap:"wrap" }}>
-            <span style={{ fontSize:10,fontWeight:700,color:AGE_CONFIG.adult.color,background:AGE_CONFIG.adult.bg,padding:"1px 6px",borderRadius:6,textTransform:"uppercase" }}>
-              {guest.adults_count || 1} {guest.adults_count === 1 ? "Adulto" : "Adultos"}
-            </span>
-            {(guest.children_count > 0 || guest.age_group === "child") && (
-              <span style={{ fontSize:10,fontWeight:700,color:AGE_CONFIG.child.color,background:AGE_CONFIG.child.bg,padding:"1px 6px",borderRadius:6,textTransform:"uppercase" }}>
-                {guest.type === "group" ? guest.children_count : 1} {guest.type === "individual" || guest.children_count === 1 ? "Criança" : "Crianças"}
+            {p18Count > 0 && (
+              <span style={{ fontSize:10,fontWeight:700,color:AGE_CONFIG.plus18.color,background:AGE_CONFIG.plus18.bg,padding:"1px 6px",borderRadius:6 }}>
+                {p18Count} [+{AGE_CONFIG.plus18.label}]
+              </span>
+            )}
+            {p6Count > 0 && (
+              <span style={{ fontSize:10,fontWeight:700,color:AGE_CONFIG.plus6.color,background:AGE_CONFIG.plus6.bg,padding:"1px 6px",borderRadius:6 }}>
+                {p6Count} [+{AGE_CONFIG.plus6.label}]
+              </span>
+            )}
+            {m6Count > 0 && (
+              <span style={{ fontSize:10,fontWeight:700,color:AGE_CONFIG.minus6.color,background:AGE_CONFIG.minus6.bg,padding:"1px 6px",borderRadius:6 }}>
+                {m6Count} [{AGE_CONFIG.minus6.label}]
               </span>
             )}
           </div>
@@ -92,32 +106,40 @@ function GuestForm({ initial, onSave, onClose }) {
   const [type, setType] = useState(initial?.type || "individual");
   const [status, setStatus] = useState(initial?.status || "pending");
   
-  const [adultsCount, setAdultsCount] = useState(initial?.adults_count ?? (initial?.age_group === "child" ? 0 : 1));
-  const [childrenCount, setChildrenCount] = useState(initial?.children_count ?? (initial?.age_group === "child" ? 1 : 0));
-  const [individualAge, setIndividualAge] = useState(initial?.age_group || "adult");
+  // Estados mapeados para os novos padrões numéricos
+  const [p18Count, setP18Count] = useState(initial?.adults_count ?? (initial?.age_group === "minus6" || initial?.age_group === "plus6" || initial?.age_group === "child" ? 0 : 1));
+  const [p6Count, setP6Count] = useState(initial?.children_count ?? (initial?.age_group === "plus6" || initial?.age_group === "child" ? 1 : 0));
+  const [m6Count, setM6Count] = useState(initial?.minus6_count ?? (initial?.age_group === "minus6" ? 1 : 0));
+  
+  const [ageGroup, setAgeGroup] = useState(() => {
+    if (initial?.age_group === "child") return "plus6";
+    if (initial?.age_group === "adult") return "plus18";
+    return initial?.age_group || "plus18";
+  });
 
   const inputRef = useRef();
-
   useEffect(() => { setTimeout(() => inputRef.current?.focus(), 100); }, []);
 
   const handleSave = () => {
     if (!name.trim()) return;
 
-    let finalAdults = 1;
-    let finalChildren = 0;
-    let finalAgeGroup = "adult";
+    let finalP18 = 0;
+    let finalP6 = 0;
+    let finalM6 = 0;
+    let finalAgeGroup = ageGroup;
 
     if (type === "individual") {
-      finalAdults = individualAge === "adult" ? 1 : 0;
-      finalChildren = individualAge === "child" ? 1 : 0;
-      finalAgeGroup = individualAge;
+      finalP18 = ageGroup === "plus18" ? 1 : 0;
+      finalP6 = ageGroup === "plus6" ? 1 : 0;
+      finalM6 = ageGroup === "minus6" ? 1 : 0;
     } else {
-      finalAdults = Number(adultsCount) || 0;
-      finalChildren = Number(childrenCount) || 0;
-      finalAgeGroup = finalAdults > 0 ? "adult" : "child";
+      finalP18 = Number(p18Count) || 0;
+      finalP6 = Number(p6Count) || 0;
+      finalM6 = Number(m6Count) || 0;
+      finalAgeGroup = finalP18 > 0 ? "plus18" : (finalP6 > 0 ? "plus6" : "minus6");
     }
 
-    const totalCount = finalAdults + finalChildren;
+    const totalCount = finalP18 + finalP6 + finalM6;
     if (totalCount <= 0) return;
 
     onSave({ 
@@ -125,8 +147,9 @@ function GuestForm({ initial, onSave, onClose }) {
       type, 
       count: totalCount, 
       status, 
-      adults_count: finalAdults, 
-      children_count: finalChildren,
+      adults_count: finalP18,    // Guardado na coluna adults_count para manter compatibilidade
+      children_count: finalP6,   // Guardado na coluna children_count
+      minus6_count: finalM6,     // Guardado na nova propriedade (envia direto ao Supabase)
       age_group: finalAgeGroup
     });
   };
@@ -137,8 +160,8 @@ function GuestForm({ initial, onSave, onClose }) {
   return (
     <>
       <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:24 }}>
-        <h2 style={{ margin:0,fontSize:20,fontWeight:700,color:"#E8F0EE",fontFamily:"'DM Sans',sans-serif" }}>{initial ? "Editar Convidado" : "Novo Convidado"}</h2>
-        <button onClick={onClose} style={{ background:"none",border:"none",color:"#5E7A72",fontSize:22,cursor:"pointer",lineHeight:1 }}>×</button>
+        <h2 style={{ margin:0,fontSize:20,fontWeight:700,color:"#E8F0EE" }}>{initial ? "Editar Convidado" : "Novo Convidado"}</h2>
+        <button onClick={onClose} style={{ background:"none",border:"none",color:"#5E7A72",fontSize:22,cursor:"pointer" }}>×</button>
       </div>
       <div style={{ marginBottom:16 }}>
         <label style={labelStyle}>Nome</label>
@@ -148,7 +171,7 @@ function GuestForm({ initial, onSave, onClose }) {
         <label style={labelStyle}>Tipo</label>
         <div style={{ display:"flex",gap:10 }}>
           {[{ v:"individual",l:"Individual" },{ v:"group",l:"Grupo / Família" }].map(({ v, l }) => (
-            <button key={v} onClick={() => setType(v)} style={{ flex:1,padding:"11px",borderRadius:12,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontWeight:600,fontSize:14,background:type===v?"rgba(45,212,160,0.15)":"#0E1618",border:type===v?"1px solid #2DD4A044":"1px solid rgba(255,255,255,0.08)",color:type===v?"#2DD4A0":"#5E7A72" }}>{l}</button>
+            <button key={v} onClick={() => setType(v)} style={{ flex:1,padding:"11px",borderRadius:12,cursor:"pointer",fontWeight:600,fontSize:14,background:type===v?"rgba(45,212,160,0.15)":"#0E1618",border:type===v?"1px solid #2DD4A044":"1px solid rgba(255,255,255,0.08)",color:type===v?"#2DD4A0":"#5E7A72" }}>{l}</button>
           ))}
         </div>
       </div>
@@ -156,21 +179,25 @@ function GuestForm({ initial, onSave, onClose }) {
       {type === "individual" ? (
         <div style={{ marginBottom:16 }}>
           <label style={labelStyle}>Faixa de Idade</label>
-          <div style={{ display:"flex",gap:10 }}>
+          <div style={{ display:"flex",gap:8 }}>
             {Object.entries(AGE_CONFIG).map(([key, cfg]) => (
-              <button key={key} onClick={() => setIndividualAge(key)} style={{ flex:1,padding:"11px",borderRadius:12,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontWeight:600,fontSize:14,background:individualAge===key?cfg.bg:"#0E1618",border:individualAge===key?`1px solid ${cfg.color}44`:"1px solid rgba(255,255,255,0.08)",color:individualAge===key?cfg.color:"#5E7A72" }}>{cfg.label}</button>
+              <button key={key} onClick={() => setAgeGroup(key)} style={{ flex:1,padding:"11px",borderRadius:12,cursor:"pointer",fontWeight:600,fontSize:14,background:ageGroup===key?cfg.bg:"#0E1618",border:ageGroup===key?`1px solid ${cfg.color}44`:"1px solid rgba(255,255,255,0.08)",color:ageGroup===key?cfg.color:"#5E7A72" }}>{cfg.label}</button>
             ))}
           </div>
         </div>
       ) : (
-        <div style={{ display:"flex",gap:12,marginBottom:16 }}>
+        <div style={{ display:"flex",gap:10,marginBottom:16 }}>
           <div style={{ flex:1 }}>
-            <label style={labelStyle}>Adultos</label>
-            <input type="number" min={0} max={99} style={inputStyle} value={adultsCount} onChange={e => setAdultsCount(e.target.value)} />
+            <label style={labelStyle}>+18</label>
+            <input type="number" min={0} max={99} style={inputStyle} value={p18Count} onChange={e => setP18Count(e.target.value)} />
           </div>
           <div style={{ flex:1 }}>
-            <label style={labelStyle}>Crianças</label>
-            <input type="number" min={0} max={99} style={inputStyle} value={childrenCount} onChange={e => setChildrenCount(e.target.value)} />
+            <label style={labelStyle}>+6</label>
+            <input type="number" min={0} max={99} style={inputStyle} value={p6Count} onChange={e => setP6Count(e.target.value)} />
+          </div>
+          <div style={{ flex:1 }}>
+            <label style={labelStyle}>-6</label>
+            <input type="number" min={0} max={99} style={inputStyle} value={m6Count} onChange={e => setM6Count(e.target.value)} />
           </div>
         </div>
       )}
@@ -179,11 +206,11 @@ function GuestForm({ initial, onSave, onClose }) {
         <label style={labelStyle}>Status</label>
         <div style={{ display:"flex",gap:8 }}>
           {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
-            <button key={key} onClick={() => setStatus(key)} style={{ flex:1,padding:"10px 8px",borderRadius:12,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontWeight:600,fontSize:12,background:status===key?cfg.bg:"#0E1618",border:status===key?`1px solid ${cfg.color}44`:"1px solid rgba(255,255,255,0.08)",color:status===key?cfg.color:"#5E7A72" }}>{cfg.label}</button>
+            <button key={key} onClick={() => setStatus(key)} style={{ flex:1,padding:"10px 8px",borderRadius:12,cursor:"pointer",fontWeight:600,fontSize:12,background:status===key?cfg.bg:"#0E1618",border:status===key?`1px solid ${cfg.color}44`:"1px solid rgba(255,255,255,0.08)",color:status===key?cfg.color:"#5E7A72" }}>{cfg.label}</button>
           ))}
         </div>
       </div>
-      <button onClick={handleSave} style={{ width:"100%",padding:"16px",borderRadius:14,border:"none",background:"linear-gradient(135deg,#2DD4A0,#1DAF82)",color:"#042C1E",fontWeight:700,fontSize:16,fontFamily:"'DM Sans',sans-serif",cursor:"pointer" }}>
+      <button onClick={handleSave} style={{ width:"100%",padding:"16px",borderRadius:14,border:"none",background:"linear-gradient(135deg,#2DD4A0,#1DAF82)",color:"#042C1E",fontWeight:700,fontSize:16,cursor:"pointer" }}>
         {initial ? "Salvar alterações" : "Adicionar convidado"}
       </button>
     </>
@@ -194,12 +221,14 @@ function ReportModal({ guests, onClose }) {
   const confirmedList = guests.filter(g => g.status === "confirmed");
   const pendingList = guests.filter(g => g.status === "pending");
 
-  const confAdults = confirmedList.reduce((s, g) => s + (g.adults_count ?? 1), 0);
-  const confChildren = confirmedList.reduce((s, g) => s + (g.children_count ?? 0), 0);
-  const confTotal = confAdults + confChildren;
+  // Totais remapeados para exibir o somatório das três idades
+  const totalP18 = confirmedList.reduce((s, g) => s + (g.type === "group" ? (g.adults_count ?? 0) : (g.age_group === "plus18" || !g.age_group || g.age_group === "adult" ? 1 : 0)), 0);
+  const totalP6  = confirmedList.reduce((s, g) => s + (g.type === "group" ? (g.children_count ?? 0) : (g.age_group === "plus6" || g.age_group === "child" ? 1 : 0)), 0);
+  const totalM6  = confirmedList.reduce((s, g) => s + (g.type === "group" ? (g.minus6_count ?? 0) : (g.age_group === "minus6" ? 1 : 0)), 0);
+  const confTotal = totalP18 + totalP6 + totalM6;
 
   const sectionTitleStyle = { fontSize:13, fontWeight:700, color:"#5E7A72", letterSpacing:"0.06em", textTransform:"uppercase", marginBottom:12, marginTop:20, borderBottom:"1px solid rgba(255,255,255,0.05)", paddingBottom:6 };
-  const reportItemStyle = { fontSize:14, color:"#E8F0EE", padding:"6px 0", borderBottom:"1px solid rgba(255,255,255,0.02)", display:"flex", justifyContent:"space-between" };
+  const reportItemStyle = { fontSize:14, color:"#E8F0EE", padding:"6px 0", borderBottom:"1px solid rgba(255,255,255,0.02)", display:"flex", justifyIntent:"space-between", justifyContent:"space-between" };
 
   return (
     <>
@@ -208,38 +237,44 @@ function ReportModal({ guests, onClose }) {
         <button onClick={onClose} style={{ background:"none",border:"none",color:"#5E7A72",fontSize:22,cursor:"pointer" }}>×</button>
       </div>
 
-      {/* Resumo Numérico de Quem Confirmou */}
-      <div style={{ background:"#0E1618", borderRadius:12, padding:14, marginBottom:16, display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, textAlign:"center" }}>
+      <div style={{ background:"#0E1618", borderRadius:12, padding:14, marginBottom:16, display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:6, textAlign:"center" }}>
         <div>
-          <div style={{ fontSize:20, fontWeight:800, color:"#2DD4A0" }}>{confTotal}</div>
-          <div style={{ fontSize:10, color:"#5E7A72", textTransform:"uppercase", marginTop:2 }}>Confirmados</div>
+          <div style={{ fontSize:18, fontWeight:800, color:"#2DD4A0" }}>{confTotal}</div>
+          <div style={{ fontSize:10, color:"#5E7A72", textTransform:"uppercase", marginTop:2 }}>Total</div>
         </div>
         <div>
-          <div style={{ fontSize:20, fontWeight:800, color:"#60A5FA" }}>{confAdults}</div>
-          <div style={{ fontSize:10, color:"#5E7A72", textTransform:"uppercase", marginTop:2 }}>Adultos</div>
+          <div style={{ fontSize:18, fontWeight:800, color:AGE_CONFIG.plus18.color }}>{totalP18}</div>
+          <div style={{ fontSize:10, color:"#5E7A72", textTransform:"uppercase", marginTop:2 }}>+18</div>
         </div>
         <div>
-          <div style={{ fontSize:20, fontWeight:800, color:"#F472B6" }}>{confChildren}</div>
-          <div style={{ fontSize:10, color:"#5E7A72", textTransform:"uppercase", marginTop:2 }}>Crianças</div>
+          <div style={{ fontSize:18, fontWeight:800, color:AGE_CONFIG.plus6.color }}>{totalP6}</div>
+          <div style={{ fontSize:10, color:"#5E7A72", textTransform:"uppercase", marginTop:2 }}>+6</div>
+        </div>
+        <div>
+          <div style={{ fontSize:18, fontWeight:800, color:AGE_CONFIG.minus6.color }}>{totalM6}</div>
+          <div style={{ fontSize:10, color:"#5E7A72", textTransform:"uppercase", marginTop:2 }}>-6</div>
         </div>
       </div>
 
-      {/* Seção Quem Confirmou */}
       <div style={sectionTitleStyle}>Confirmados ({confirmedList.length} Grupos)</div>
       {confirmedList.length === 0 ? (
         <p style={{ fontSize:13, color:"#334A44", fontStyle:"italic" }}>Ninguém confirmado ainda.</p>
       ) : (
-        confirmedList.map(g => (
-          <div key={g.id} style={reportItemStyle}>
-            <span>✓ {g.name}</span>
-            <span style={{ fontSize:12, color:"#5E7A72" }}>
-              {g.adults_count || 1}A {g.children_count > 0 ? `· ${g.children_count}C` : ""}
-            </span>
-          </div>
-        ))
+        confirmedList.map(g => {
+          const p18 = g.type === "group" ? (g.adults_count ?? 0) : (g.age_group === "plus18" || !g.age_group || g.age_group === "adult" ? 1 : 0);
+          const p6  = g.type === "group" ? (g.children_count ?? 0) : (g.age_group === "plus6" || g.age_group === "child" ? 1 : 0);
+          const m6  = g.type === "group" ? (g.minus6_count ?? 0) : (g.age_group === "minus6" ? 1 : 0);
+          return (
+            <div key={g.id} style={reportItemStyle}>
+              <span>✓ {g.name}</span>
+              <span style={{ fontSize:12, color:"#5E7A72" }}>
+                {[p18 > 0 && `${p18}(+18)`, p6 > 0 && `${p6}(+6)`, m6 > 0 && `${m6}(-6)`].filter(Boolean).join(" · ")}
+              </span>
+            </div>
+          );
+        })
       )}
 
-      {/* Seção Quem Não Confirmou (Pendentes) */}
       <div style={{ ...sectionTitleStyle, color:"#F59E0B" }}>Não Foram / Pendentes ({pendingList.length})</div>
       {pendingList.length === 0 ? (
         <p style={{ fontSize:13, color:"#334A44", fontStyle:"italic" }}>Nenhum pendente.</p>
@@ -263,7 +298,6 @@ export default function App() {
   const [showReport, setShowReport] = useState(false);
   const [editGuest, setEditGuest] = useState(null);
 
-  // 1. CARREGAR CONVIDADOS DO SUPABASE
   useEffect(() => {
     async function loadGuests() {
       const { data, error } = await supabase
@@ -293,28 +327,24 @@ export default function App() {
     { key:"confirmed", label:"Confirmados", data: filtered.filter(g => g.status === "confirmed") },
   ].filter(s => s.data.length > 0);
 
-  // 2. ADICIONAR CONVIDADO NO SUPABASE
   const handleAdd = async (data) => {
     const { data: newGuest, error } = await supabase.from("guests").insert([data]).select();
     if (error) console.error("Erro ao adicionar:", error);
     else { setGuests(prev => [...prev, newGuest[0]]); setShowForm(false); }
   };
 
-  // 3. EDITAR CONVIDADO NO SUPABASE
   const handleEdit = async (data) => {
     const { data: updatedGuest, error } = await supabase.from("guests").update(data).eq("id", editGuest.id).select();
     if (error) console.error("Erro ao editar:", error);
     else { setGuests(prev => prev.map(g => g.id === editGuest.id ? updatedGuest[0] : g)); setEditGuest(null); }
   };
 
-  // 4. MUDAR STATUS RAPIDÃO (BOTOES DO CARD)
   const handleStatusChange = async (id, newStatus) => {
     const { error } = await supabase.from("guests").update({ status: newStatus }).eq("id", id);
     if (error) console.error("Erro ao atualizar status:", error);
     else setGuests(prev => prev.map(g => g.id === id ? { ...g, status: newStatus } : g));
   };
 
-  // 5. DELETAR CONVIDADO NO SUPABASE
   const handleDelete = async (id) => {
     const { error } = await supabase.from("guests").delete().eq("id", id);
     if (error) console.error("Erro ao deletar:", error);
@@ -342,7 +372,6 @@ export default function App() {
             <p style={{ fontSize:13,color:"#5E7A72" }}>{safeGuests.length} grupos · {totalPeople} pessoas</p>
           </div>
           
-          {/* Botões de Ação Unificados no Topo */}
           <div style={{ display:"flex", gap:8 }}>
             <button onClick={() => setShowReport(true)} style={{ background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.08)", color:"#E8F0EE", borderRadius:12, padding:"10px 14px", fontWeight:600, fontSize:13, cursor:"pointer" }}>📋 Relatório</button>
             <button onClick={() => setShowForm(true)} style={{ background:"linear-gradient(135deg,#2DD4A0,#1DAF82)",color:"#042C1E",border:"none",borderRadius:12,padding:"10px 16px",fontWeight:700,fontSize:13,cursor:"pointer" }}>+ Novo</button>
@@ -369,13 +398,13 @@ export default function App() {
 
         <div style={{ position:"relative",marginBottom:14 }}>
           <span style={{ position:"absolute",left:14,top:"50%",transform:"translateY(-50%)",fontSize:15,color:"#334A44",pointerEvents:"none" }}>🔍</span>
-          <input type="text" placeholder="Buscar pelo nome..." value={search} onChange={e => setSearch(e.target.value)} style={{ width:"100%",background:"#131B1E",border:"1px solid rgba(255,255,255,0.07)",borderRadius:12,padding:"13px 14px 13px 42px",color:"#E8F0EE",fontSize:15,fontFamily:"'DM Sans',sans-serif",outline:"none" }} />
+          <input type="text" placeholder="Buscar pelo nome..." value={search} onChange={e => setSearch(e.target.value)} style={{ width:"100%",background:"#131B1E",border:"1px solid rgba(255,255,255,0.07)",borderRadius:12,padding:"13px 14px 13px 42px",color:"#E8F0EE",fontSize:15,outline:"none" }} />
           {search && <button onClick={() => setSearch("")} style={{ position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",color:"#5E7A72",cursor:"pointer",fontSize:18 }}>×</button>}
         </div>
 
         <div style={{ display:"flex",gap:6,overflowX:"auto",paddingBottom:4 }}>
           {[{ key:"all",label:"Todos" },{ key:"confirmed",label:"✓ Confirmados" },{ key:"pending",label:"⏳ Pendentes" }].map(({ key, label }) => (
-            <button key={key} onClick={() => setFilter(key)} style={{ flexShrink:0,padding:"8px 14px",borderRadius:20,fontFamily:"'DM Sans',sans-serif",fontWeight:600,fontSize:13,cursor:"pointer",whiteSpace:"nowrap",background:filter===key?"#2DD4A0":"transparent",border:filter===key?"1px solid #2DD4A0":"1px solid rgba(255,255,255,0.1)",color:filter===key?"#042C1E":"#5E7A72" }}>{label}</button>
+            <button key={key} onClick={() => setFilter(key)} style={{ flexShrink:0,padding:"8px 14px",borderRadius:20,fontWeight:600,fontSize:13,cursor:"pointer",whiteSpace:"nowrap",background:filter===key?"#2DD4A0":"transparent",border:filter===key?"1px solid #2DD4A0":"1px solid rgba(255,255,255,0.1)",color:filter===key?"#042C1E":"#5E7A72" }}>{label}</button>
           ))}
         </div>
       </div>
@@ -396,7 +425,6 @@ export default function App() {
         ))}
       </div>
 
-      {/* Modal de Novo/Editar Convidado */}
       <Modal open={showForm} onClose={() => setShowForm(false)}>
         <GuestForm onSave={handleAdd} onClose={() => setShowForm(false)} />
       </Modal>
@@ -404,7 +432,6 @@ export default function App() {
         {editGuest && <GuestForm initial={editGuest} onSave={handleEdit} onClose={() => setEditGuest(null)} />}
       </Modal>
 
-      {/* Modal de Relatório Dedicado */}
       <Modal open={showReport} onClose={() => setShowReport(false)}>
         <ReportModal guests={safeGuests} onClose={() => setShowReport(false)} />
       </Modal>
