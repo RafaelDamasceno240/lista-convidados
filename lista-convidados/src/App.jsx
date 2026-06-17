@@ -12,6 +12,11 @@ const STATUS_CONFIG = {
   pending:   { label: "Pendente",   color: "#F59E0B", bg: "rgba(245,158,11,0.15)", dot: "#F59E0B" },
 };
 
+const AGE_CONFIG = {
+  adult: { label: "Adulto", color: "#60A5FA", bg: "rgba(96,165,251,0.12)" },
+  child: { label: "Criança", color: "#F472B6", bg: "rgba(244,114,182,0.12)" },
+};
+
 function getInitials(name) {
   return name.split(" ").slice(0, 2).map(w => w[0]).join("").toUpperCase();
 }
@@ -47,7 +52,7 @@ function Modal({ open, onClose, children }) {
 function GuestCard({ guest, onStatusChange, onDelete, onEdit }) {
   const { bg, text } = avatarColor(guest.name);
   const statusCfg = STATUS_CONFIG[guest.status] || STATUS_CONFIG.pending;
-  // Alterna diretamente entre confirmado e pendente
+  const ageCfg = AGE_CONFIG[guest.age_group || "adult"];
   const nextStatus = guest.status === "confirmed" ? "pending" : "confirmed";
 
   return (
@@ -57,8 +62,15 @@ function GuestCard({ guest, onStatusChange, onDelete, onEdit }) {
       </div>
       <div style={{ flex:1,minWidth:0 }}>
         <div style={{ fontWeight:600,fontSize:15,color:"#E8F0EE",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{guest.name}</div>
-        <div style={{ fontSize:12,color:"#5E7A72",marginTop:2 }}>{guest.type === "group" ? `${guest.count} pessoa(s)` : "Individual"}</div>
-        <span style={{ display:"inline-block",marginTop:4,fontSize:11,fontWeight:600,letterSpacing:"0.03em",color:statusCfg.color,background:statusCfg.bg,borderRadius:20,padding:"2px 10px" }}>{statusCfg.label}</span>
+        <div style={{ display:"flex",alignItems:"center",gap:6,marginTop:2 }}>
+          <span style={{ fontSize:12,color:"#5E7A72" }}>
+            {guest.type === "group" ? `${guest.count} pessoa(s)` : "Individual"}
+          </span>
+          <span style={{ fontSize:10,fontWeight:700,color:ageCfg.color,background:ageCfg.bg,padding:"1px 6px",borderRadius:6,textTransform:"uppercase",letterSpacing:"0.02em" }}>
+            {ageCfg.label}
+          </span>
+        </div>
+        <span style={{ display:"inline-block",marginTop:6,fontSize:11,fontWeight:600,letterSpacing:"0.03em",color:statusCfg.color,background:statusCfg.bg,borderRadius:20,padding:"2px 10px" }}>{statusCfg.label}</span>
       </div>
       <div style={{ display:"flex",alignItems:"center",gap:8,flexShrink:0 }}>
         <button onClick={() => onStatusChange(guest.id, nextStatus)} style={{ background:statusCfg.bg,border:`1px solid ${statusCfg.color}44`,borderRadius:10,padding:"8px 14px",color:statusCfg.color,fontWeight:700,fontSize:12,cursor:"pointer",whiteSpace:"nowrap",fontFamily:"'DM Sans',sans-serif" }}>{statusCfg.label}</button>
@@ -74,13 +86,14 @@ function GuestForm({ initial, onSave, onClose }) {
   const [type, setType] = useState(initial?.type || "individual");
   const [count, setCount] = useState(initial?.count || 1);
   const [status, setStatus] = useState(initial?.status || "pending");
+  const [ageGroup, setAgeGroup] = useState(initial?.age_group || "adult");
   const inputRef = useRef();
 
   useEffect(() => { setTimeout(() => inputRef.current?.focus(), 100); }, []);
 
   const handleSave = () => {
     if (!name.trim()) return;
-    onSave({ name: name.trim(), type, count: type === "group" ? Number(count) : 1, status });
+    onSave({ name: name.trim(), type, count: type === "group" ? Number(count) : 1, status, age_group: ageGroup });
   };
 
   const inputStyle = { width:"100%",background:"#0E1618",border:"1px solid rgba(255,255,255,0.1)",borderRadius:12,padding:"13px 16px",color:"#E8F0EE",fontSize:15,fontFamily:"'DM Sans',sans-serif",outline:"none",boxSizing:"border-box" };
@@ -110,6 +123,14 @@ function GuestForm({ initial, onSave, onClose }) {
           <input type="number" min={2} max={99} style={inputStyle} value={count} onChange={e => setCount(e.target.value)} />
         </div>
       )}
+      <div style={{ marginBottom:16 }}>
+        <label style={labelStyle}>Faixa de Idade</label>
+        <div style={{ display:"flex",gap:10 }}>
+          {Object.entries(AGE_CONFIG).map(([key, cfg]) => (
+            <button key={key} onClick={() => setAgeGroup(key)} style={{ flex:1,padding:"11px",borderRadius:12,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontWeight:600,fontSize:14,background:ageGroup===key?cfg.bg:"#0E1618",border:ageGroup===key?`1px solid ${cfg.color}44`:"1px solid rgba(255,255,255,0.08)",color:ageGroup===key?cfg.color:"#5E7A72" }}>{cfg.label}</button>
+          ))}
+        </div>
+      </div>
       <div style={{ marginBottom:24 }}>
         <label style={labelStyle}>Status</label>
         <div style={{ display:"flex",gap:8 }}>
