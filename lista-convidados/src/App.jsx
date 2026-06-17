@@ -42,7 +42,7 @@ function Modal({ open, onClose, children }) {
   if (!open) return null;
   return (
     <div onClick={onClose} style={{ position:"fixed",inset:0,zIndex:50,background:"rgba(0,0,0,0.7)",backdropFilter:"blur(4px)",display:"flex",alignItems:"flex-end",justifyContent:"center",animation:"fadeIn 0.2s ease" }}>
-      <div onClick={e => e.stopPropagation()} style={{ background:"#131B1E",borderRadius:"20px 20px 0 0",width:"100%",maxWidth:480,padding:"28px 24px 40px",boxShadow:"0 -8px 40px rgba(0,0,0,0.5)",animation:"slideUp 0.25s cubic-bezier(0.34,1.56,0.64,1)" }}>
+      <div onClick={e => e.stopPropagation()} style={{ background:"#131B1E",borderRadius:"20px 20px 0 0",width:"100%",maxWidth:480,padding:"28px 24px 40px",boxShadow:"0 -8px 40px rgba(0,0,0,0.5)",animation:"slideUp 0.25s cubic-bezier(0.34,1.56,0.64,1)",maxHeight:"85vh",overflowY:"auto" }}>
         {children}
       </div>
     </div>
@@ -190,11 +190,77 @@ function GuestForm({ initial, onSave, onClose }) {
   );
 }
 
+function ReportModal({ guests, onClose }) {
+  const confirmedList = guests.filter(g => g.status === "confirmed");
+  const pendingList = guests.filter(g => g.status === "pending");
+
+  const confAdults = confirmedList.reduce((s, g) => s + (g.adults_count ?? 1), 0);
+  const confChildren = confirmedList.reduce((s, g) => s + (g.children_count ?? 0), 0);
+  const confTotal = confAdults + confChildren;
+
+  const sectionTitleStyle = { fontSize:13, fontWeight:700, color:"#5E7A72", letterSpacing:"0.06em", textTransform:"uppercase", marginBottom:12, marginTop:20, borderBottom:"1px solid rgba(255,255,255,0.05)", paddingBottom:6 };
+  const reportItemStyle = { fontSize:14, color:"#E8F0EE", padding:"6px 0", borderBottom:"1px solid rgba(255,255,255,0.02)", display:"flex", justifyContent:"space-between" };
+
+  return (
+    <>
+      <div style={{ display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20 }}>
+        <h2 style={{ margin:0,fontSize:20,fontWeight:700,color:"#E8F0EE" }}>📋 Relatório de Presença</h2>
+        <button onClick={onClose} style={{ background:"none",border:"none",color:"#5E7A72",fontSize:22,cursor:"pointer" }}>×</button>
+      </div>
+
+      {/* Resumo Numérico de Quem Confirmou */}
+      <div style={{ background:"#0E1618", borderRadius:12, padding:14, marginBottom:16, display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, textAlign:"center" }}>
+        <div>
+          <div style={{ fontSize:20, fontWeight:800, color:"#2DD4A0" }}>{confTotal}</div>
+          <div style={{ fontSize:10, color:"#5E7A72", textTransform:"uppercase", marginTop:2 }}>Confirmados</div>
+        </div>
+        <div>
+          <div style={{ fontSize:20, fontWeight:800, color:"#60A5FA" }}>{confAdults}</div>
+          <div style={{ fontSize:10, color:"#5E7A72", textTransform:"uppercase", marginTop:2 }}>Adultos</div>
+        </div>
+        <div>
+          <div style={{ fontSize:20, fontWeight:800, color:"#F472B6" }}>{confChildren}</div>
+          <div style={{ fontSize:10, color:"#5E7A72", textTransform:"uppercase", marginTop:2 }}>Crianças</div>
+        </div>
+      </div>
+
+      {/* Seção Quem Confirmou */}
+      <div style={sectionTitleStyle}>Confirmados ({confirmedList.length} Grupos)</div>
+      {confirmedList.length === 0 ? (
+        <p style={{ fontSize:13, color:"#334A44", fontStyle:"italic" }}>Ninguém confirmado ainda.</p>
+      ) : (
+        confirmedList.map(g => (
+          <div key={g.id} style={reportItemStyle}>
+            <span>✓ {g.name}</span>
+            <span style={{ fontSize:12, color:"#5E7A72" }}>
+              {g.adults_count || 1}A {g.children_count > 0 ? `· ${g.children_count}C` : ""}
+            </span>
+          </div>
+        ))
+      )}
+
+      {/* Seção Quem Não Confirmou (Pendentes) */}
+      <div style={{ ...sectionTitleStyle, color:"#F59E0B" }}>Não Foram / Pendentes ({pendingList.length})</div>
+      {pendingList.length === 0 ? (
+        <p style={{ fontSize:13, color:"#334A44", fontStyle:"italic" }}>Nenhum pendente.</p>
+      ) : (
+        pendingList.map(g => (
+          <div key={g.id} style={reportItemStyle}>
+            <span style={{ color:"rgba(232,240,238,0.6)" }}>⏳ {g.name}</span>
+            <span style={{ fontSize:12, color:"#334A44" }}>({g.count}p)</span>
+          </div>
+        ))
+      )}
+    </>
+  );
+}
+
 export default function App() {
   const [guests, setGuests] = useState([]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [showForm, setShowForm] = useState(false);
+  const [showReport, setShowReport] = useState(false);
   const [editGuest, setEditGuest] = useState(null);
 
   // 1. CARREGAR CONVIDADOS DO SUPABASE
@@ -275,7 +341,12 @@ export default function App() {
             </div>
             <p style={{ fontSize:13,color:"#5E7A72" }}>{safeGuests.length} grupos · {totalPeople} pessoas</p>
           </div>
-          <button onClick={() => setShowForm(true)} style={{ background:"linear-gradient(135deg,#2DD4A0,#1DAF82)",color:"#042C1E",border:"none",borderRadius:12,padding:"10px 18px",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"'DM Sans',sans-serif" }}>+ Novo</button>
+          
+          {/* Botões de Ação Unificados no Topo */}
+          <div style={{ display:"flex", gap:8 }}>
+            <button onClick={() => setShowReport(true)} style={{ background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.08)", color:"#E8F0EE", borderRadius:12, padding:"10px 14px", fontWeight:600, fontSize:13, cursor:"pointer" }}>📋 Relatório</button>
+            <button onClick={() => setShowForm(true)} style={{ background:"linear-gradient(135deg,#2DD4A0,#1DAF82)",color:"#042C1E",border:"none",borderRadius:12,padding:"10px 16px",fontWeight:700,fontSize:13,cursor:"pointer" }}>+ Novo</button>
+          </div>
         </div>
 
         <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:20 }}>
@@ -325,11 +396,17 @@ export default function App() {
         ))}
       </div>
 
+      {/* Modal de Novo/Editar Convidado */}
       <Modal open={showForm} onClose={() => setShowForm(false)}>
         <GuestForm onSave={handleAdd} onClose={() => setShowForm(false)} />
       </Modal>
       <Modal open={!!editGuest} onClose={() => setEditGuest(null)}>
         {editGuest && <GuestForm initial={editGuest} onSave={handleEdit} onClose={() => setEditGuest(null)} />}
+      </Modal>
+
+      {/* Modal de Relatório Dedicado */}
+      <Modal open={showReport} onClose={() => setShowReport(false)}>
+        <ReportModal guests={safeGuests} onClose={() => setShowReport(false)} />
       </Modal>
     </div>
   );
