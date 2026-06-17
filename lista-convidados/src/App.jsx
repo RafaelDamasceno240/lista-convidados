@@ -12,7 +12,6 @@ const STATUS_CONFIG = {
   pending:   { label: "Pendente",   color: "#F59E0B", bg: "rgba(245,158,11,0.15)", dot: "#F59E0B" },
 };
 
-// Nova configuração de faixas de idade requisitada
 const AGE_CONFIG = {
   plus18: { label: "+18", color: "#60A5FA", bg: "rgba(96,165,251,0.12)" },
   plus6:  { label: "+6",  color: "#F472B6", bg: "rgba(244,114,182,0.12)" },
@@ -56,7 +55,6 @@ function GuestCard({ guest, onStatusChange, onDelete, onEdit }) {
   const statusCfg = STATUS_CONFIG[guest.status] || STATUS_CONFIG.pending;
   const nextStatus = guest.status === "confirmed" ? "pending" : "confirmed";
 
-  // Mapeamento retrocompatível ou baseado nos novos campos adicionais do Supabase
   const p18Count = guest.type === "group" ? (guest.adults_count ?? 0) : (guest.age_group === "plus18" || !guest.age_group || guest.age_group === "adult" ? 1 : 0);
   const p6Count  = guest.type === "group" ? (guest.children_count ?? 0) : (guest.age_group === "plus6" || guest.age_group === "child" ? 1 : 0);
   const m6Count  = guest.type === "group" ? (guest.minus6_count ?? 0) : (guest.age_group === "minus6" ? 1 : 0);
@@ -104,9 +102,8 @@ function GuestCard({ guest, onStatusChange, onDelete, onEdit }) {
 function GuestForm({ initial, onSave, onClose }) {
   const [name, setName] = useState(initial?.name || "");
   const [type, setType] = useState(initial?.type || "individual");
-  const [status, setStatus] = useState(initial?.status || "pending");
+  const [status] = useState(initial?.status || "pending");
   
-  // Estados mapeados para os novos padrões numéricos
   const [p18Count, setP18Count] = useState(initial?.adults_count ?? (initial?.age_group === "minus6" || initial?.age_group === "plus6" || initial?.age_group === "child" ? 0 : 1));
   const [p6Count, setP6Count] = useState(initial?.children_count ?? (initial?.age_group === "plus6" || initial?.age_group === "child" ? 1 : 0));
   const [m6Count, setM6Count] = useState(initial?.minus6_count ?? (initial?.age_group === "minus6" ? 1 : 0));
@@ -147,9 +144,9 @@ function GuestForm({ initial, onSave, onClose }) {
       type, 
       count: totalCount, 
       status, 
-      adults_count: finalP18,    // Guardado na coluna adults_count para manter compatibilidade
-      children_count: finalP6,   // Guardado na coluna children_count
-      minus6_count: finalM6,     // Guardado na nova propriedade (envia direto ao Supabase)
+      adults_count: finalP18,
+      children_count: finalP6,
+      minus6_count: finalM6,
       age_group: finalAgeGroup
     });
   };
@@ -177,7 +174,7 @@ function GuestForm({ initial, onSave, onClose }) {
       </div>
 
       {type === "individual" ? (
-        <div style={{ marginBottom:16 }}>
+        <div style={{ marginBottom:24 }}>
           <label style={labelStyle}>Faixa de Idade</label>
           <div style={{ display:"flex",gap:8 }}>
             {Object.entries(AGE_CONFIG).map(([key, cfg]) => (
@@ -186,7 +183,7 @@ function GuestForm({ initial, onSave, onClose }) {
           </div>
         </div>
       ) : (
-        <div style={{ display:"flex",gap:10,marginBottom:16 }}>
+        <div style={{ display:"flex",gap:10,marginBottom:24 }}>
           <div style={{ flex:1 }}>
             <label style={labelStyle}>+18</label>
             <input type="number" min={0} max={99} style={inputStyle} value={p18Count} onChange={e => setP18Count(e.target.value)} />
@@ -202,14 +199,6 @@ function GuestForm({ initial, onSave, onClose }) {
         </div>
       )}
 
-      <div style={{ marginBottom:24 }}>
-        <label style={labelStyle}>Status</label>
-        <div style={{ display:"flex",gap:8 }}>
-          {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
-            <button key={key} onClick={() => setStatus(key)} style={{ flex:1,padding:"10px 8px",borderRadius:12,cursor:"pointer",fontWeight:600,fontSize:12,background:status===key?cfg.bg:"#0E1618",border:status===key?`1px solid ${cfg.color}44`:"1px solid rgba(255,255,255,0.08)",color:status===key?cfg.color:"#5E7A72" }}>{cfg.label}</button>
-          ))}
-        </div>
-      </div>
       <button onClick={handleSave} style={{ width:"100%",padding:"16px",borderRadius:14,border:"none",background:"linear-gradient(135deg,#2DD4A0,#1DAF82)",color:"#042C1E",fontWeight:700,fontSize:16,cursor:"pointer" }}>
         {initial ? "Salvar alterações" : "Adicionar convidado"}
       </button>
@@ -221,14 +210,13 @@ function ReportModal({ guests, onClose }) {
   const confirmedList = guests.filter(g => g.status === "confirmed");
   const pendingList = guests.filter(g => g.status === "pending");
 
-  // Totais remapeados para exibir o somatório das três idades
   const totalP18 = confirmedList.reduce((s, g) => s + (g.type === "group" ? (g.adults_count ?? 0) : (g.age_group === "plus18" || !g.age_group || g.age_group === "adult" ? 1 : 0)), 0);
   const totalP6  = confirmedList.reduce((s, g) => s + (g.type === "group" ? (g.children_count ?? 0) : (g.age_group === "plus6" || g.age_group === "child" ? 1 : 0)), 0);
-  const totalM6  = confirmedList.reduce((s, g) => s + (g.type === "group" ? (g.minus6_count ?? 0) : (g.age_group === "minus6" ? 1 : 0)), 0);
+  const totalM6  = confirmedList.reduce((s, g) => s + (g.minus6_count ?? 0) : (g.age_group === "minus6" ? 1 : 0)), 0);
   const confTotal = totalP18 + totalP6 + totalM6;
 
   const sectionTitleStyle = { fontSize:13, fontWeight:700, color:"#5E7A72", letterSpacing:"0.06em", textTransform:"uppercase", marginBottom:12, marginTop:20, borderBottom:"1px solid rgba(255,255,255,0.05)", paddingBottom:6 };
-  const reportItemStyle = { fontSize:14, color:"#E8F0EE", padding:"6px 0", borderBottom:"1px solid rgba(255,255,255,0.02)", display:"flex", justifyIntent:"space-between", justifyContent:"space-between" };
+  const reportItemStyle = { fontSize:14, color:"#E8F0EE", padding:"6px 0", borderBottom:"1px solid rgba(255,255,255,0.02)", display:"flex", justifyContent:"space-between" };
 
   return (
     <>
@@ -322,11 +310,6 @@ export default function App() {
     return filter === "all" ? matchSearch : g.status === filter && matchSearch;
   });
 
-  const sections = [
-    { key:"pending", label:"Pendentes", data: filtered.filter(g => g.status === "pending") },
-    { key:"confirmed", label:"Confirmados", data: filtered.filter(g => g.status === "confirmed") },
-  ].filter(s => s.data.length > 0);
-
   const handleAdd = async (data) => {
     const { data: newGuest, error } = await supabase.from("guests").insert([data]).select();
     if (error) console.error("Erro ao adicionar:", error);
@@ -410,19 +393,22 @@ export default function App() {
       </div>
 
       <div style={{ padding:"20px 20px 0" }}>
-        {sections.length === 0 ? (
+        {filtered.length === 0 ? (
           <div style={{ textAlign:"center",padding:"60px 0",color:"#334A44" }}>
             <div style={{ fontSize:40,marginBottom:12 }}>🔍</div>
             <p style={{ fontSize:16 }}>Nenhum convidado encontrado</p>
           </div>
-        ) : sections.map(({ key, label, data }) => (
-          <div key={key} style={{ marginBottom:8 }}>
-            <div style={{ fontSize:11,fontWeight:700,color:STATUS_CONFIG[key]?.color || "#FFF",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:10,marginTop:4 }}>
-              {label} ({data.reduce((s, g) => s + (g.count || 0), 0)})
-            </div>
-            {data.map(g => <GuestCard key={g.id} guest={g} onStatusChange={handleStatusChange} onDelete={handleDelete} onEdit={setEditGuest} />)}
-          </div>
-        ))}
+        ) : (
+          filtered.map(g => (
+            <GuestCard 
+              key={g.id} 
+              guest={g} 
+              onStatusChange={handleStatusChange} 
+              onDelete={handleDelete} 
+              onEdit={setEditGuest} 
+            />
+          ))
+        )}
       </div>
 
       <Modal open={showForm} onClose={() => setShowForm(false)}>
