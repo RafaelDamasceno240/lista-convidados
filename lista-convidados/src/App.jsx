@@ -146,14 +146,17 @@ export default function App() {
     loadGuests();
   }, []);
 
-  const totalPeople = guests.reduce((s, g) => s + g.count, 0);
-  const confirmedPeople = guests.filter(g => g.status === "confirmed").reduce((s, g) => s + g.count, 0);
-  const pendingPeople = guests.filter(g => g.status === "pending").reduce((s, g) => s + g.count, 0);
-  const absentPeople = guests.filter(g => g.status === "absent").reduce((s, g) => s + g.count, 0);
-  const pendingGuests = guests.filter(g => g.status === "pending");
+  // --- TRAVA DE SEGURANÇA SEGURO CONTRA ARRAY VAZIO OU UNDEFINED ---
+  const safeGuests = Array.isArray(guests) ? guests : [];
 
-  const filtered = guests.filter(g => {
-    const matchSearch = g.name.toLowerCase().includes(search.toLowerCase());
+  const totalPeople     = safeGuests.reduce((s, g) => s + (g.count || 0), 0);
+  const confirmedPeople = safeGuests.filter(g => g.status === "confirmed").reduce((s, g) => s + (g.count || 0), 0);
+  const pendingPeople   = safeGuests.filter(g => g.status === "pending").reduce((s, g) => s + (g.count || 0), 0);
+  const absentPeople    = safeGuests.filter(g => g.status === "absent").reduce((s, g) => s + (g.count || 0), 0);
+  const pendingGuests   = safeGuests.filter(g => g.status === "pending");
+
+  const filtered = safeGuests.filter(g => {
+    const matchSearch = g.name ? g.name.toLowerCase().includes(search.toLowerCase()) : false;
     return filter === "all" ? matchSearch : g.status === filter && matchSearch;
   });
 
@@ -216,7 +219,7 @@ export default function App() {
               <span style={{ fontSize:22 }}>🎉</span>
               <h1 style={{ fontSize:26,fontWeight:800,color:"#E8F0EE",letterSpacing:"-0.02em" }}>Convidados</h1>
             </div>
-            <p style={{ fontSize:13,color:"#5E7A72" }}>{guests.length} grupos · {totalPeople} pessoas</p>
+            <p style={{ fontSize:13,color:"#5E7A72" }}>{safeGuests.length} grupos · {totalPeople} pessoas</p>
           </div>
           <button onClick={() => setShowForm(true)} style={{ background:"linear-gradient(135deg,#2DD4A0,#1DAF82)",color:"#042C1E",border:"none",borderRadius:12,padding:"10px 18px",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"'DM Sans',sans-serif" }}>+ Novo</button>
         </div>
@@ -262,7 +265,7 @@ export default function App() {
         ) : sections.map(({ key, label, data }) => (
           <div key={key} style={{ marginBottom:8 }}>
             <div style={{ fontSize:11,fontWeight:700,color:STATUS_CONFIG[key].color,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:10,marginTop:4 }}>
-              {label} ({data.reduce((s, g) => s + g.count, 0)})
+              {label} ({data.reduce((s, g) => s + (g.count || 0), 0)})
             </div>
             {data.map(g => <GuestCard key={g.id} guest={g} onStatusChange={handleStatusChange} onDelete={handleDelete} onEdit={setEditGuest} />)}
           </div>
