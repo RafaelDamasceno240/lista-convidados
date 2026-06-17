@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-// Inicialização do cliente Supabase (Suporta local com VITE_ e produção na Vercel)
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.SUPABASE_ANON_KEY;
+// Chaves públicas configuradas direto no código para pular a limitação da Vercel
+const supabaseUrl = "https://pvnsxgyhneocebrbkave.supabase.co";
+const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB2bnN4Z3lobmVvY2VicmJrYXZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2NTg1MzIsImV4cCI6MjA5NzIzNDUzMn0._jygiB27AyQk9og-1Z5OlArTLoZZEQInrHtoeSsakNQ";
+
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const STATUS_CONFIG = {
