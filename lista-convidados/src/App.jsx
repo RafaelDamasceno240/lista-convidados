@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 
 // Chaves públicas configuradas direto no código para pular a limitação da Vercel
 const supabaseUrl = "https://pvnsxgyhneocebrbkave.supabase.co";
-const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB2bnN4Z3lobmVvY2VicmJrYXZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3IDE2NTg1MzIsImV4cCI6MjA5NzIzNDUzMn0._jygiB27AyQk9og-1Z5OlArTLoZZEQInrHtoeSsakNQ";
+const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB2bnN4Z3lobmVvY2VicmJrYXZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2NTg1MzIsImV4cCI6MjA5NzIzNDUzMn0._jygiB27AyQk9og-1Z5OlArTLoZZEQInrHtoeSsakNQ";
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
@@ -12,9 +12,9 @@ const STATUS_CONFIG = {
   pending:   { label: "Pendente",   color: "#F59E0B", bg: "rgba(245,158,11,0.15)", dot: "#F59E0B" },
 };
 
-// Configuração de faixas de idade atualizada para +12
+// Nova configuração de faixas de idade requisitada
 const AGE_CONFIG = {
-  plus12: { label: "+12", color: "#60A5FA", bg: "rgba(96,165,251,0.12)" },
+  plus18: { label: "+18", color: "#60A5FA", bg: "rgba(96,165,251,0.12)" },
   plus6:  { label: "+6",  color: "#F472B6", bg: "rgba(244,114,182,0.12)" },
   minus6: { label: "-6",  color: "#A78BFA", bg: "rgba(167,139,250,0.12)" },
 };
@@ -56,7 +56,8 @@ function GuestCard({ guest, onStatusChange, onDelete, onEdit }) {
   const statusCfg = STATUS_CONFIG[guest.status] || STATUS_CONFIG.pending;
   const nextStatus = guest.status === "confirmed" ? "pending" : "confirmed";
 
-  const p12Count = guest.type === "group" ? (guest.adults_count ?? 0) : (guest.age_group === "plus12" || !guest.age_group || guest.age_group === "adult" || guest.age_group === "plus18" ? 1 : 0);
+  // Mapeamento retrocompatível ou baseado nos novos campos adicionais do Supabase
+  const p18Count = guest.type === "group" ? (guest.adults_count ?? 0) : (guest.age_group === "plus18" || !guest.age_group || guest.age_group === "adult" ? 1 : 0);
   const p6Count  = guest.type === "group" ? (guest.children_count ?? 0) : (guest.age_group === "plus6" || guest.age_group === "child" ? 1 : 0);
   const m6Count  = guest.type === "group" ? (guest.minus6_count ?? 0) : (guest.age_group === "minus6" ? 1 : 0);
 
@@ -72,9 +73,9 @@ function GuestCard({ guest, onStatusChange, onDelete, onEdit }) {
             {guest.type === "group" ? `${guest.count} pessoa(s)` : "Individual"}
           </span>
           <div style={{ display:"flex",gap:4,flexWrap:"wrap" }}>
-            {p12Count > 0 && (
-              <span style={{ fontSize:10,fontWeight:700,color:AGE_CONFIG.plus12.color,background:AGE_CONFIG.plus12.bg,padding:"1px 6px",borderRadius:6 }}>
-                {p12Count} [+{AGE_CONFIG.plus12.label}]
+            {p18Count > 0 && (
+              <span style={{ fontSize:10,fontWeight:700,color:AGE_CONFIG.plus18.color,background:AGE_CONFIG.plus18.bg,padding:"1px 6px",borderRadius:6 }}>
+                {p18Count} [+{AGE_CONFIG.plus18.label}]
               </span>
             )}
             {p6Count > 0 && (
@@ -103,16 +104,17 @@ function GuestCard({ guest, onStatusChange, onDelete, onEdit }) {
 function GuestForm({ initial, onSave, onClose }) {
   const [name, setName] = useState(initial?.name || "");
   const [type, setType] = useState(initial?.type || "individual");
-  const [status] = useState(initial?.status || "pending");
+  const [status, setStatus] = useState(initial?.status || "pending");
   
-  const [p12Count, setP12Count] = useState(initial?.adults_count ?? (initial?.age_group === "minus6" || initial?.age_group === "plus6" || initial?.age_group === "child" ? 0 : 1));
+  // Estados mapeados para os novos padrões numéricos
+  const [p18Count, setP18Count] = useState(initial?.adults_count ?? (initial?.age_group === "minus6" || initial?.age_group === "plus6" || initial?.age_group === "child" ? 0 : 1));
   const [p6Count, setP6Count] = useState(initial?.children_count ?? (initial?.age_group === "plus6" || initial?.age_group === "child" ? 1 : 0));
   const [m6Count, setM6Count] = useState(initial?.minus6_count ?? (initial?.age_group === "minus6" ? 1 : 0));
   
   const [ageGroup, setAgeGroup] = useState(() => {
     if (initial?.age_group === "child") return "plus6";
-    if (initial?.age_group === "adult" || initial?.age_group === "plus18") return "plus12";
-    return initial?.age_group || "plus12";
+    if (initial?.age_group === "adult") return "plus18";
+    return initial?.age_group || "plus18";
   });
 
   const inputRef = useRef();
@@ -121,23 +123,23 @@ function GuestForm({ initial, onSave, onClose }) {
   const handleSave = () => {
     if (!name.trim()) return;
 
-    let finalP12 = 0;
+    let finalP18 = 0;
     let finalP6 = 0;
     let finalM6 = 0;
     let finalAgeGroup = ageGroup;
 
     if (type === "individual") {
-      finalP12 = ageGroup === "plus12" ? 1 : 0;
+      finalP18 = ageGroup === "plus18" ? 1 : 0;
       finalP6 = ageGroup === "plus6" ? 1 : 0;
       finalM6 = ageGroup === "minus6" ? 1 : 0;
     } else {
-      finalP12 = Number(p12Count) || 0;
+      finalP18 = Number(p18Count) || 0;
       finalP6 = Number(p6Count) || 0;
       finalM6 = Number(m6Count) || 0;
-      finalAgeGroup = finalP12 > 0 ? "plus12" : (finalP6 > 0 ? "plus6" : "minus6");
+      finalAgeGroup = finalP18 > 0 ? "plus18" : (finalP6 > 0 ? "plus6" : "minus6");
     }
 
-    const totalCount = finalP12 + finalP6 + finalM6;
+    const totalCount = finalP18 + finalP6 + finalM6;
     if (totalCount <= 0) return;
 
     onSave({ 
@@ -145,9 +147,9 @@ function GuestForm({ initial, onSave, onClose }) {
       type, 
       count: totalCount, 
       status, 
-      adults_count: finalP12,
-      children_count: finalP6,
-      minus6_count: finalM6,
+      adults_count: finalP18,    // Guardado na coluna adults_count para manter compatibilidade
+      children_count: finalP6,   // Guardado na coluna children_count
+      minus6_count: finalM6,     // Guardado na nova propriedade (envia direto ao Supabase)
       age_group: finalAgeGroup
     });
   };
@@ -175,7 +177,7 @@ function GuestForm({ initial, onSave, onClose }) {
       </div>
 
       {type === "individual" ? (
-        <div style={{ marginBottom:24 }}>
+        <div style={{ marginBottom:16 }}>
           <label style={labelStyle}>Faixa de Idade</label>
           <div style={{ display:"flex",gap:8 }}>
             {Object.entries(AGE_CONFIG).map(([key, cfg]) => (
@@ -184,10 +186,10 @@ function GuestForm({ initial, onSave, onClose }) {
           </div>
         </div>
       ) : (
-        <div style={{ display:"flex",gap:10,marginBottom:24 }}>
+        <div style={{ display:"flex",gap:10,marginBottom:16 }}>
           <div style={{ flex:1 }}>
-            <label style={labelStyle}>+12</label>
-            <input type="number" min={0} max={99} style={inputStyle} value={p12Count} onChange={e => setP12Count(e.target.value)} />
+            <label style={labelStyle}>+18</label>
+            <input type="number" min={0} max={99} style={inputStyle} value={p18Count} onChange={e => setP18Count(e.target.value)} />
           </div>
           <div style={{ flex:1 }}>
             <label style={labelStyle}>+6</label>
@@ -200,6 +202,14 @@ function GuestForm({ initial, onSave, onClose }) {
         </div>
       )}
 
+      <div style={{ marginBottom:24 }}>
+        <label style={labelStyle}>Status</label>
+        <div style={{ display:"flex",gap:8 }}>
+          {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
+            <button key={key} onClick={() => setStatus(key)} style={{ flex:1,padding:"10px 8px",borderRadius:12,cursor:"pointer",fontWeight:600,fontSize:12,background:status===key?cfg.bg:"#0E1618",border:status===key?`1px solid ${cfg.color}44`:"1px solid rgba(255,255,255,0.08)",color:status===key?cfg.color:"#5E7A72" }}>{cfg.label}</button>
+          ))}
+        </div>
+      </div>
       <button onClick={handleSave} style={{ width:"100%",padding:"16px",borderRadius:14,border:"none",background:"linear-gradient(135deg,#2DD4A0,#1DAF82)",color:"#042C1E",fontWeight:700,fontSize:16,cursor:"pointer" }}>
         {initial ? "Salvar alterações" : "Adicionar convidado"}
       </button>
@@ -211,13 +221,14 @@ function ReportModal({ guests, onClose }) {
   const confirmedList = guests.filter(g => g.status === "confirmed");
   const pendingList = guests.filter(g => g.status === "pending");
 
-  const totalP12 = confirmedList.reduce((s, g) => s + (g.type === "group" ? (g.adults_count ?? 0) : (g.age_group === "plus12" || !g.age_group || g.age_group === "adult" || g.age_group === "plus18" ? 1 : 0)), 0);
+  // Totais remapeados para exibir o somatório das três idades
+  const totalP18 = confirmedList.reduce((s, g) => s + (g.type === "group" ? (g.adults_count ?? 0) : (g.age_group === "plus18" || !g.age_group || g.age_group === "adult" ? 1 : 0)), 0);
   const totalP6  = confirmedList.reduce((s, g) => s + (g.type === "group" ? (g.children_count ?? 0) : (g.age_group === "plus6" || g.age_group === "child" ? 1 : 0)), 0);
-  const totalM6  = confirmedList.reduce((s, g) => s + (g.minus6_count ?? 0) : (g.age_group === "minus6" ? 1 : 0)), 0);
-  const confTotal = totalP12 + totalP6 + totalM6;
+  const totalM6  = confirmedList.reduce((s, g) => s + (g.type === "group" ? (g.minus6_count ?? 0) : (g.age_group === "minus6" ? 1 : 0)), 0);
+  const confTotal = totalP18 + totalP6 + totalM6;
 
   const sectionTitleStyle = { fontSize:13, fontWeight:700, color:"#5E7A72", letterSpacing:"0.06em", textTransform:"uppercase", marginBottom:12, marginTop:20, borderBottom:"1px solid rgba(255,255,255,0.05)", paddingBottom:6 };
-  const reportItemStyle = { fontSize:14, color:"#E8F0EE", padding:"6px 0", borderBottom:"1px solid rgba(255,255,255,0.02)", display:"flex", justifyContent:"space-between" };
+  const reportItemStyle = { fontSize:14, color:"#E8F0EE", padding:"6px 0", borderBottom:"1px solid rgba(255,255,255,0.02)", display:"flex", justifyIntent:"space-between", justifyContent:"space-between" };
 
   return (
     <>
@@ -232,8 +243,8 @@ function ReportModal({ guests, onClose }) {
           <div style={{ fontSize:10, color:"#5E7A72", textTransform:"uppercase", marginTop:2 }}>Total</div>
         </div>
         <div>
-          <div style={{ fontSize:18, fontWeight:800, color:AGE_CONFIG.plus12.color }}>{totalP12}</div>
-          <div style={{ fontSize:10, color:"#5E7A72", textTransform:"uppercase", marginTop:2 }}>+12</div>
+          <div style={{ fontSize:18, fontWeight:800, color:AGE_CONFIG.plus18.color }}>{totalP18}</div>
+          <div style={{ fontSize:10, color:"#5E7A72", textTransform:"uppercase", marginTop:2 }}>+18</div>
         </div>
         <div>
           <div style={{ fontSize:18, fontWeight:800, color:AGE_CONFIG.plus6.color }}>{totalP6}</div>
@@ -250,14 +261,14 @@ function ReportModal({ guests, onClose }) {
         <p style={{ fontSize:13, color:"#334A44", fontStyle:"italic" }}>Ninguém confirmado ainda.</p>
       ) : (
         confirmedList.map(g => {
-          const p12 = g.type === "group" ? (g.adults_count ?? 0) : (g.age_group === "plus12" || !g.age_group || g.age_group === "adult" || g.age_group === "plus18" ? 1 : 0);
+          const p18 = g.type === "group" ? (g.adults_count ?? 0) : (g.age_group === "plus18" || !g.age_group || g.age_group === "adult" ? 1 : 0);
           const p6  = g.type === "group" ? (g.children_count ?? 0) : (g.age_group === "plus6" || g.age_group === "child" ? 1 : 0);
           const m6  = g.type === "group" ? (g.minus6_count ?? 0) : (g.age_group === "minus6" ? 1 : 0);
           return (
             <div key={g.id} style={reportItemStyle}>
               <span>✓ {g.name}</span>
               <span style={{ fontSize:12, color:"#5E7A72" }}>
-                {[p12 > 0 && `${p12}(+12)`, p6 > 0 && `${p6}(+6)`, m6 > 0 && `${m6}(-6)`].filter(Boolean).join(" · ")}
+                {[p18 > 0 && `${p18}(+18)`, p6 > 0 && `${p6}(+6)`, m6 > 0 && `${m6}(-6)`].filter(Boolean).join(" · ")}
               </span>
             </div>
           );
@@ -310,6 +321,11 @@ export default function App() {
     const matchSearch = g.name ? g.name.toLowerCase().includes(search.toLowerCase()) : false;
     return filter === "all" ? matchSearch : g.status === filter && matchSearch;
   });
+
+  const sections = [
+    { key:"pending", label:"Pendentes", data: filtered.filter(g => g.status === "pending") },
+    { key:"confirmed", label:"Confirmados", data: filtered.filter(g => g.status === "confirmed") },
+  ].filter(s => s.data.length > 0);
 
   const handleAdd = async (data) => {
     const { data: newGuest, error } = await supabase.from("guests").insert([data]).select();
@@ -394,22 +410,19 @@ export default function App() {
       </div>
 
       <div style={{ padding:"20px 20px 0" }}>
-        {filtered.length === 0 ? (
+        {sections.length === 0 ? (
           <div style={{ textAlign:"center",padding:"60px 0",color:"#334A44" }}>
             <div style={{ fontSize:40,marginBottom:12 }}>🔍</div>
             <p style={{ fontSize:16 }}>Nenhum convidado encontrado</p>
           </div>
-        ) : (
-          filtered.map(g => (
-            <GuestCard 
-              key={g.id} 
-              guest={g} 
-              onStatusChange={handleStatusChange} 
-              onDelete={handleDelete} 
-              onEdit={setEditGuest} 
-            />
-          ))
-        )}
+        ) : sections.map(({ key, label, data }) => (
+          <div key={key} style={{ marginBottom:8 }}>
+            <div style={{ fontSize:11,fontWeight:700,color:STATUS_CONFIG[key]?.color || "#FFF",letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:10,marginTop:4 }}>
+              {label} ({data.reduce((s, g) => s + (g.count || 0), 0)})
+            </div>
+            {data.map(g => <GuestCard key={g.id} guest={g} onStatusChange={handleStatusChange} onDelete={handleDelete} onEdit={setEditGuest} />)}
+          </div>
+        ))}
       </div>
 
       <Modal open={showForm} onClose={() => setShowForm(false)}>
