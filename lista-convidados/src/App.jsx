@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 
 // Chaves públicas configuradas direto no código para pular a limitação da Vercel
 const supabaseUrl = "https://pvnsxgyhneocebrbkave.supabase.co";
-const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB2bnN4Z3lobmVvY2VicmJrYXZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3IDE2NTg1MzIsImV4cCI6MjA5NzIzNDUzMn0._jygiB27AyQk9og-1Z5OlArTLoZZEQInrHtoeSsakNQ";
+const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB2bnN4Z3lobmVvY2VicmJrYXZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE2NTg1MzIsImV4cCI6MjA5NzIzNDUzMn0._jygiB27AyQk9og-1Z5OlArTLoZZEQInrHtoeSsakNQ";
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
@@ -213,7 +213,7 @@ function ReportModal({ guests, onClose }) {
 
   const totalP12 = confirmedList.reduce((s, g) => s + (g.type === "group" ? (g.adults_count ?? 0) : (g.age_group === "plus12" || !g.age_group || g.age_group === "adult" || g.age_group === "plus18" ? 1 : 0)), 0);
   const totalP6  = confirmedList.reduce((s, g) => s + (g.type === "group" ? (g.children_count ?? 0) : (g.age_group === "plus6" || g.age_group === "child" ? 1 : 0)), 0);
-  const totalM6  = confirmedList.reduce((s, g) => s + (g.minus6_count ?? 0) : (g.age_group === "minus6" ? 1 : 0)), 0);
+  const totalM6  = confirmedList.reduce((s, g) => s + (g.minus6_count ?? 0), 0);
   const confTotal = totalP12 + totalP6 + totalM6;
 
   const sectionTitleStyle = { fontSize:13, fontWeight:700, color:"#5E7A72", letterSpacing:"0.06em", textTransform:"uppercase", marginBottom:12, marginTop:20, borderBottom:"1px solid rgba(255,255,255,0.05)", paddingBottom:6 };
